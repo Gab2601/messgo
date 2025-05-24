@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>SnapClone</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background: #f0f0f0;
+    }
+    .hidden {
+      display: none;
+    }
+    #app, #auth {
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+    }
+    input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+    }
+    #top-nav {
+      display: flex;
+      gap: 5px;
+      justify-content: space-around;
+      margin-bottom: 10px;
+    }
+    video, canvas {
+      width: 100%;
+      max-width: 100%;
+      border-radius: 10px;
+      margin-top: 10px;
+      background: black;
+      object-fit: cover;
+    }
+    #posts div {
+      margin-bottom: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+      background: white;
+      padding: 10px;
+    }
+    #posts img {
+      width: 100%;
+      border-radius: 10px;
+      display: block;
+      margin-bottom: 8px;
+    }
+    #posts p {
+      margin: 0;
+      font-size: 1rem;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+<div id="auth">
+  <h2>Connexion / Inscription</h2>
+  <input id="email" type="email" placeholder="Email" autocomplete="username" />
+  <input id="password" type="password" placeholder="Mot de passe" autocomplete="current-password" />
+  <button id="signupBtn">S'inscrire</button>
+  <button id="loginBtn">Se connecter</button>
+  <div id="authMessage" style="color:red; min-height: 1.2em;"></div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="top-nav">
+    <button id="feedBtn">Fil</button>
+    <button id="postBtnNav">Poster</button>
+    <button id="profileBtn">Profil</button>
+    <button id="logoutBtn">Déconnexion</button>
+  </div>
+
+  <div id="view-feed">
+    <h3>Fil d'actualité</h3>
+    <div id="posts"></div>
+  </div>
+
+  <div id="view-post" class="hidden">
+    <h3>Poster une photo</h3>
+    <video id="video" autoplay playsinline></video>
+    <button id="startCameraBtn">Lancer la caméra arrière</button>
+    <button id="takePhotoBtn" disabled>Capturer</button>
+    <canvas id="preview" class="hidden"></canvas>
+    <input id="caption" type="text" placeholder="Légende" />
+    <button id="publishBtn" disabled>Publier</button>
+  </div>
+
+  <div id="view-profile" class="hidden">
+    <h3>Profil</h3>
+    <p>Email : <span id="profileEmail"></span></p>
+  </div>
+</div>
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const supabase = createClient(
+  "https://qoorpktaiwufqmsvohqa.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvb3Jwa3RhaXd1ZnFtc3ZvaHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzY3ODgsImV4cCI6MjA2MzUxMjc4OH0.isawuZt5NN1YAdwjGOcWX2Li-4829Fg6myCXNAARRfM"
+);
+
+// Elements
+const authDiv = document.getElementById("auth");
+const appDiv = document.getElementById("app");
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+const emailInput = document.getElementById("email");
+const passwordInput = document.getElementById("password");
+const authMessage = document.getElementById("authMessage");
+const video = document.getElementById("video");
+const canvas = document.getElementById("preview");
+const captionInput = document.getElementById("caption");
+const startCameraBtn = document.getElementById("startCameraBtn");
+const takePhotoBtn = document.getElementById("takePhotoBtn");
+const publishBtn = document.getElementById("publishBtn");
+const profileEmail = document.getElementById("profileEmail");
+const postsDiv = document.getElementById("posts");
+
+// Navigation
+document.getElementById("feedBtn").onclick = showFeed;
+document.getElementById("postBtnNav").onclick = showPost;
+document.getElementById("profileBtn").onclick = showProfile;
+
+let stream = null;
+let currentUser = null;
+
+// Auth
+loginBtn.onclick = async () => {
+  authMessage.textContent = "";
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: emailInput.value,
+    password: passwordInput.value,
+  });
+  if (error) {
+    authMessage.textContent = error.message;
+    return;
+  }
+  handleSession(data.session);
+};
+
+signupBtn.onclick = async () => {
+  authMessage.textContent = "";
+  const { data, error } = await supabase.auth.signUp({
+    email: emailInput.value,
+    password: passwordInput.value,
+  });
+  if (error) {
+    authMessage.textContent = error.message;
+    return;
+  }
+  handleSession(data.session);
+};
+
+logoutBtn.onclick = async () => {
+  await supabase.auth.signOut();
+  location.reload();
+};
+
+// Camera functions
+startCameraBtn.onclick = async () => {
+  try {
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { exact: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    takePhotoBtn.disabled = false;
+    publishBtn.disabled = true;
+    canvas.classList.add("hidden");
+    video.classList.remove("hidden");
+  } catch (err) {
+    alert("Erreur caméra : " + err.message);
+  }
+};
+
+takePhotoBtn.onclick = () => {
+  if (!stream) {
+    alert("Lancez d'abord la caméra.");
+    return;
+  }
+  const ctx = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  canvas.classList.remove("hidden");
+  video.classList.add("hidden");
+  publishBtn.disabled = false;
+};
+
+// Publish photo
+publishBtn.onclick = async () => {
+  canvas.toBlob(async (blob) => {
+    if (!blob || blob.size === 0) return alert("Erreur : image vide.");
+
+    const fileName = `${currentUser.id}_${Date.now()}.png`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("posts")
+      .upload(fileName, blob, { contentType: "image/png" });
+
+    if (uploadError) {
+      alert("Erreur upload : " + uploadError.message);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
+
+    const { error: insertError } = await supabase.from("daily_posts").insert({
+      user_id: currentUser.id,
+      photo_url: urlData.publicUrl,
+      caption: captionInput.value,
+      timestamp: new Date().toISOString()
+    });
+
+    if (insertError) {
+      alert("Erreur insertion : " + insertError.message);
+      return;
+    }
+
+    captionInput.value = "";
+    loadPosts();
+    showFeed();
+  }, "image/png");
+};
+
+// Views
+function showFeed() {
+  document.getElementById("view-feed").classList.remove("hidden");
+  document.getElementById("view-post").classList.add("hidden");
+  document.getElementById("view-profile").classList.add("hidden");
+}
+
+function showPost() {
+  document.getElementById("view-feed").classList.add("hidden");
+  document.getElementById("view-post").classList.remove("hidden");
+  document.getElementById("view-profile").classList.add("hidden");
+}
+
+function showProfile() {
+  document.getElementById("view-feed").classList.add("hidden");
+  document.getElementById("view-post").classList.add("hidden");
+  document.getElementById("view-profile").classList.remove("hidden");
+}
+
+async function loadPosts() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from("daily_posts")
+    .select("*")
+    .gte("timestamp", today.toISOString())
+    .order("timestamp", { ascending: false });
+
+  if (error) {
+    postsDiv.innerHTML = "<p>Erreur chargement posts.</p>";
+    return;
+  }
+
+  postsDiv.innerHTML = "";
+  data.forEach(post => {
+    const div = document.createElement("div");
+    div.innerHTML = `
+      <img src="${post.photo_url}" alt="Photo postée" />
+      <p>${post.caption || ""}</p>
+    `;
+    postsDiv.appendChild(div);
+  });
+}
+
+async function init() {
+  const { data: { session } } = await supabase.auth.getSession();
+  handleSession(session);
+  supabase.auth.onAuthStateChange((_event, session) => handleSession(session));
+}
+
+function handleSession(session) {
+  currentUser = session?.user || null;
+  if (currentUser) {
+    authDiv.classList.add("hidden");
+    appDiv.classList.remove("hidden");
+    profileEmail.textContent = currentUser.email;
+    loadPosts();
+  } else {
+    authDiv.classList.remove("hidden");
+    appDiv.classList.add("hidden");
+  }
+}
+
+init();
+
+// PWA install & service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js").catch(e => {
+    console.error("Service worker registration failed:", e);
+  });
+}
+</script>
+</body>
+</html>
