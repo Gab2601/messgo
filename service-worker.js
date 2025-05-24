@@ -1,46 +1,43 @@
-const CACHE_NAME = "snapclone-cache-v1";
-const CACHE_FILES = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./service-worker.js",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm",
-  // ajoute ici tes fichiers CSS, images, icônes si besoin
+const CACHE_NAME = "snapclone-cache-v2";
+const urlsToCache = [
+  "/",
+  "/index.html",
+  "/manifest.json",
+  "/icon.png",
+  // ajoute ici d'autres ressources statiques que tu veux cacher
 ];
 
-// Installation : mise en cache des fichiers
-self.addEventListener("install", (event) => {
+// Installation - mise en cache des fichiers
+self.addEventListener("install", event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(CACHE_FILES))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+      .then(() => self.skipWaiting()) // active immédiatement ce service worker
   );
-  self.skipWaiting();
 });
 
-// Activation : nettoyage ancien cache
-self.addEventListener("activate", (event) => {
+// Activation - nettoyage des anciens caches
+self.addEventListener("activate", event => {
   event.waitUntil(
-    caches.keys().then(keys => Promise.all(
-      keys.map(key => {
-        if (key !== CACHE_NAME) return caches.delete(key);
-      })
-    ))
+    caches.keys().then(keys => {
+      return Promise.all(
+        keys.map(key => {
+          if (key !== CACHE_NAME) return caches.delete(key);
+        })
+      );
+    }).then(() => self.clients.claim()) // prend le contrôle immédiatement
   );
-  self.clients.claim();
 });
 
-// Interception requêtes : cache first
-self.addEventListener("fetch", (event) => {
+// Interception des requêtes pour servir les fichiers cache ou réseau
+self.addEventListener("fetch", event => {
   event.respondWith(
-    caches.match(event.request).then(cachedRes => {
-      if (cachedRes) return cachedRes;
-      return fetch(event.request).then(networkRes => {
-        return caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, networkRes.clone());
-          return networkRes;
-        });
-      }).catch(() => {
-        // Optionnel : afficher une page hors-ligne ici
-      });
-    })
+    caches.match(event.request).then(response => response || fetch(event.request))
   );
+});
+
+// Ecoute des messages pour skipWaiting (mise à jour forcée)
+self.addEventListener('message', event => {
+  if (event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
 });
