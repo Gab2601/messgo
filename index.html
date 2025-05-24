@@ -3,31 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <title>SnapClone</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="manifest" href="manifest.json" />
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f0f0f0; }
-    .hidden { display: none; }
-    #app, #auth { max-width: 600px; margin: auto; padding: 20px; }
-    input, button { width: 100%; padding: 10px; margin: 5px 0; border: none; border-radius: 5px; }
-    button { background-color: #007bff; color: white; cursor: pointer; }
-    #top-nav { display: flex; gap: 5px; justify-content: space-around; margin-bottom: 10px; }
-    canvas, video { width: 100%; border-radius: 10px; margin-top: 10px; background: black; }
-    
-    /* Bandeau de mise à jour */
-    #updateBanner {
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background: #f0f0f0;
+    }
+    .hidden {
       display: none;
-      position: fixed;
-      bottom: 0;
+    }
+    #app, #auth {
+      max-width: 600px;
+      margin: auto;
+      padding: 20px;
+    }
+    input, button {
       width: 100%;
-      background: #007bff;
+      padding: 10px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 1em;
+    }
+    button {
+      background-color: #007bff;
       color: white;
-      padding: 15px;
-      text-align: center;
-      font-weight: bold;
       cursor: pointer;
-      z-index: 1000;
-      user-select: none;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #top-nav {
+      display: flex;
+      gap: 5px;
+      justify-content: space-around;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    video, canvas {
+      width: 100%;
+      max-height: 400px;
+      border-radius: 10px;
+      background: black;
+      object-fit: cover;
+    }
+    #posts div {
+      margin-bottom: 20px;
+    }
+    #posts img {
+      width: 100%;
+      border-radius: 10px;
+    }
+    #posts p {
+      margin: 8px 0 0 0;
+      font-size: 1em;
+    }
+    #authMessage {
+      color: red;
+      min-height: 1.2em;
     }
   </style>
 </head>
@@ -39,7 +76,7 @@
   <input id="password" type="password" placeholder="Mot de passe" />
   <button id="signupBtn">S'inscrire</button>
   <button id="loginBtn">Se connecter</button>
-  <div id="authMessage" style="color:red"></div>
+  <div id="authMessage"></div>
 </div>
 
 <div id="app" class="hidden">
@@ -60,7 +97,7 @@
     <video id="video" autoplay playsinline></video>
     <button id="startCameraBtn">Lancer la caméra</button>
     <button id="takePhotoBtn">Capturer</button>
-    <canvas id="preview" width="300" height="200"></canvas>
+    <canvas id="preview" width="300" height="400" class="hidden"></canvas>
     <input id="caption" type="text" placeholder="Légende" />
     <button id="publishBtn">Publier</button>
   </div>
@@ -70,9 +107,6 @@
     <p>Email : <span id="profileEmail"></span></p>
   </div>
 </div>
-
-<!-- Bandeau pour mise à jour -->
-<div id="updateBanner">Nouvelle version disponible - Cliquez pour recharger</div>
 
 <script type="module">
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
@@ -99,7 +133,6 @@
   const publishBtn = document.getElementById("publishBtn");
   const profileEmail = document.getElementById("profileEmail");
   const postsDiv = document.getElementById("posts");
-  const updateBanner = document.getElementById("updateBanner");
 
   // Navigation
   document.getElementById("feedBtn").onclick = showFeed;
@@ -108,6 +141,7 @@
 
   let stream = null;
   let currentUser = null;
+  let photoTaken = false;
 
   // Auth
   loginBtn.onclick = async () => {
@@ -141,7 +175,7 @@
     location.reload();
   };
 
-  // Camera
+  // Camera handlers
   startCameraBtn.onclick = async () => {
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
@@ -149,34 +183,60 @@
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { exact: "environment" } } // force caméra arrière
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 1080 }
+        },
+        audio: false
       });
       video.srcObject = stream;
-      video.play();
+      await video.play();
+      canvas.classList.add("hidden");
+      video.classList.remove("hidden");
+      photoTaken = false;
     } catch (error) {
       console.error("Erreur caméra:", error);
-      alert("Impossible d’accéder à la caméra arrière.");
+      alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
     }
   };
 
   takePhotoBtn.onclick = () => {
-    if (!stream) return alert("Lancez la caméra d'abord !");
+    if (!stream) {
+      alert("Veuillez lancer la caméra d'abord.");
+      return;
+    }
     const ctx = canvas.getContext("2d");
+    // Ajuster la taille du canvas à la vidéo actuelle
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.classList.remove("hidden");
+    video.classList.add("hidden");
+    photoTaken = true;
   };
 
   // Publish
   publishBtn.onclick = async () => {
+    if (!photoTaken) {
+      alert("Veuillez capturer une photo avant de publier.");
+      return;
+    }
+
     canvas.toBlob(async (blob) => {
-      if (!blob || blob.size === 0) return alert("Erreur : image vide.");
+      if (!blob || blob.size === 0) {
+        alert("Erreur : image vide.");
+        return;
+      }
 
       const fileName = `${currentUser.id}_${Date.now()}.png`;
       const { data: file, error: uploadError } = await supabase.storage.from("posts").upload(fileName, blob);
-
-      if (uploadError) return alert("Erreur upload : " + uploadError.message);
+      if (uploadError) {
+        alert("Erreur upload : " + uploadError.message);
+        return;
+      }
 
       const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
-
       await supabase.from("daily_posts").insert({
         user_id: currentUser.id,
         photo_url: urlData.publicUrl,
@@ -187,6 +247,14 @@
       captionInput.value = "";
       loadPosts();
       showFeed();
+      // Reset camera UI
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      canvas.classList.add("hidden");
+      video.classList.remove("hidden");
+      photoTaken = false;
     }, "image/png");
   };
 
@@ -219,12 +287,18 @@
       .order("timestamp", { ascending: false });
 
     postsDiv.innerHTML = "";
-    data.forEach(post => {
-      const div = document.createElement("div");
-      div.style.marginBottom = "15px";
-      div.innerHTML = `<img src="${post.photo_url}" style="width:100%;border-radius:10px;"><p>${post.caption}</p>`;
-      postsDiv.appendChild(div);
-    });
+    if (data && data.length) {
+      data.forEach(post => {
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <img src="${post.photo_url}" alt="Photo postée" />
+          <p>${post.caption || ""}</p>
+        `;
+        postsDiv.appendChild(div);
+      });
+    } else {
+      postsDiv.innerHTML = "<p>Aucun post aujourd'hui.</p>";
+    }
   }
 
   async function init() {
@@ -240,7 +314,6 @@
       appDiv.classList.remove("hidden");
       profileEmail.textContent = currentUser.email;
       loadPosts();
-      showFeed();
     } else {
       authDiv.classList.remove("hidden");
       appDiv.classList.add("hidden");
@@ -249,28 +322,13 @@
 
   init();
 
-  // PWA install + service worker update management
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').then(registration => {
-      registration.addEventListener('updatefound', () => {
-        const newWorker = registration.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            updateBanner.style.display = 'block';
-            updateBanner.onclick = () => {
-              newWorker.postMessage({ action: 'skipWaiting' });
-            };
-          }
-        });
-      });
-    });
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload();
+  // PWA install and service worker registration
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("service-worker.js").then(() => {
+      console.log("Service Worker enregistré.");
     });
   }
 </script>
 
 </body>
 </html>
-
