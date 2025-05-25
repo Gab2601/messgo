@@ -47,12 +47,14 @@
 
     /* Taille unifiée pour vidéo, canvas et images */
     video, canvas, #posts img {
-      width: 100%;
-      max-height: 400px;
-      height: auto;
-      object-fit: cover;
-      border-radius: 10px;
-    }
+  width: 100%;
+  aspect-ratio: 4 / 3; /* rectangle horizontal */
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+  margin-bottom: 10px;
+}
+
 
     #posts div {
       margin-bottom: 20px;
