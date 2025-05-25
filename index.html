@@ -44,24 +44,25 @@
       margin-bottom: 10px;
       flex-wrap: wrap;
     }
-    video, canvas {
+
+    /* Taille unifiée pour vidéo, canvas et images */
+    video, canvas, #posts img {
       width: 100%;
       max-height: 400px;
-      border-radius: 10px;
-      background: black;
+      height: auto;
       object-fit: cover;
+      border-radius: 10px;
     }
+
     #posts div {
       margin-bottom: 20px;
     }
-    #posts img {
-      width: 100%;
-      border-radius: 10px;
-    }
+
     #posts p {
       margin: 8px 0 0 0;
       font-size: 1em;
     }
+
     #authMessage {
       color: red;
       min-height: 1.2em;
@@ -97,7 +98,7 @@
     <video id="video" autoplay playsinline></video>
     <button id="startCameraBtn">Lancer la caméra</button>
     <button id="takePhotoBtn">Capturer</button>
-    <canvas id="preview" width="300" height="400" class="hidden"></canvas>
+    <canvas id="preview" class="hidden"></canvas>
     <input id="caption" type="text" placeholder="Légende" />
     <button id="publishBtn">Publier</button>
   </div>
@@ -116,7 +117,6 @@
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvb3Jwa3RhaXd1ZnFtc3ZvaHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzY3ODgsImV4cCI6MjA2MzUxMjc4OH0.isawuZt5NN1YAdwjGOcWX2Li-4829Fg6myCXNAARRfM"
   );
 
-  // Elements
   const authDiv = document.getElementById("auth");
   const appDiv = document.getElementById("app");
   const loginBtn = document.getElementById("loginBtn");
@@ -134,7 +134,6 @@
   const profileEmail = document.getElementById("profileEmail");
   const postsDiv = document.getElementById("posts");
 
-  // Navigation
   document.getElementById("feedBtn").onclick = showFeed;
   document.getElementById("postBtnNav").onclick = showPost;
   document.getElementById("profileBtn").onclick = showProfile;
@@ -143,7 +142,6 @@
   let currentUser = null;
   let photoTaken = false;
 
-  // Auth
   loginBtn.onclick = async () => {
     authMessage.textContent = "";
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -175,7 +173,6 @@
     location.reload();
   };
 
-  // Camera handlers
   startCameraBtn.onclick = async () => {
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
@@ -197,7 +194,7 @@
       photoTaken = false;
     } catch (error) {
       console.error("Erreur caméra:", error);
-      alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
+      alert("Impossible d’accéder à la caméra.");
     }
   };
 
@@ -207,7 +204,6 @@
       return;
     }
     const ctx = canvas.getContext("2d");
-    // Ajuster la taille du canvas à la vidéo actuelle
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -216,10 +212,9 @@
     photoTaken = true;
   };
 
-  // Publish
   publishBtn.onclick = async () => {
     if (!photoTaken) {
-      alert("Veuillez capturer une photo avant de publier.");
+      alert("Prenez une photo avant de publier.");
       return;
     }
 
@@ -247,7 +242,6 @@
       captionInput.value = "";
       loadPosts();
       showFeed();
-      // Reset camera UI
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
         stream = null;
@@ -258,7 +252,6 @@
     }, "image/png");
   };
 
-  // Views
   function showFeed() {
     document.getElementById("view-feed").classList.remove("hidden");
     document.getElementById("view-post").classList.add("hidden");
@@ -322,7 +315,6 @@
 
   init();
 
-  // PWA install and service worker registration
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js").then(() => {
       console.log("Service Worker enregistré.");
