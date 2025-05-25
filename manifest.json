@@ -1,11 +1,11 @@
 {
-  "name": "messgo",
-  "short_name": "messgo",
-  "start_url": ".",
+  "name": "SnapClone",
+  "short_name": "Snap",
+  "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#f0f0f0",
+  "background_color": "#ffffff",
   "theme_color": "#007bff",
-  "description": "Une application de capture photo et partage.",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon.png",
@@ -19,3 +19,4 @@
     }
   ]
 }
+
