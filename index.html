@@ -99,6 +99,10 @@
       padding: 10px;
       font-size: 1em;
     }
+    .mirror {
+  transform: scaleX(-1);
+}
+
   </style>
 </head>
 <body>
@@ -213,31 +217,45 @@
     location.reload();
   };
 
-  startCameraBtn.onclick = async () => {
-    await startCamera();
-  };
+ async function startCamera() {
+  if (stream) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: usingFrontCamera ? "user" : "environment",
+        width: { ideal: 1280 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    video.classList.remove("hidden");
+    canvas.classList.add("hidden");
+    photoTaken = false;
 
-  switchCameraBtn.onclick = async () => {
-    usingFrontCamera = !usingFrontCamera;
-    await startCamera();
-  };
-
-  takePhotoBtn.onclick = () => {
-    if (!stream) {
-      alert("Veuillez lancer la caméra d'abord.");
-      return;
+    // Mirror front camera only
+    if (usingFrontCamera) {
+      video.classList.add("mirror");
+    } else {
+      video.classList.remove("mirror");
     }
-    const ctx = canvas.getContext("2d");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.classList.remove("hidden");
-    video.classList.add("hidden");
-    photoTaken = true;
-    // Désactiver prise photo, activer publication
+
+    takePhotoBtn.disabled = false;
+    switchCameraBtn.disabled = false;
+    publishBtn.disabled = true;
+  } catch (error) {
+    console.error("Erreur caméra:", error);
+    alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
     takePhotoBtn.disabled = true;
-    publishBtn.disabled = false;
-  };
+    switchCameraBtn.disabled = true;
+    publishBtn.disabled = true;
+  }
+}
+
 
   publishBtn.onclick = async () => {
     if (!photoTaken) {
