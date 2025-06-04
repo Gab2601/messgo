@@ -66,6 +66,10 @@
       object-fit: cover;
     }
 
+    video.mirror {
+      transform: scaleX(-1);
+    }
+
     #posts div {
       margin-bottom: 20px;
     }
@@ -86,7 +90,6 @@
     #authMessage {
       color: red;
       min-height: 1.2em;
-    }
     }
   </style>
 </head>
@@ -121,7 +124,7 @@
     <button id="startCameraBtn">Lancer la caméra</button>
     <button id="takePhotoBtn" disabled>Capturer</button>
     <canvas id="preview" width="300" height="400" class="hidden"></canvas>
-    <input id="caption" type="text" placeholder="Légende" />
+    <input id="caption" type="text" placeholder="Légende (optionnelle)" />
     <button id="publishBtn" disabled>Publier</button>
   </div>
 
@@ -164,7 +167,7 @@
   let stream = null;
   let currentUser = null;
   let photoTaken = false;
-  let usingFrontCamera = false; // false = back camera, true = front camera
+  let usingFrontCamera = true;
 
   loginBtn.onclick = async () => {
     authMessage.textContent = "";
@@ -207,44 +210,40 @@
   async function startCamera() {
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
-      stream = null;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: usingFrontCamera ? "user" : "environment",
-          width: { ideal: 1280 },
-          height: { ideal: 1080 }
+          facingMode: usingFrontCamera ? "user" : "environment"
         },
         audio: false
       });
       video.srcObject = stream;
-      await video.play();
       video.classList.remove("hidden");
       canvas.classList.add("hidden");
-      photoTaken = false;
+      video.classList.toggle("mirror", usingFrontCamera);
       takePhotoBtn.disabled = false;
       publishBtn.disabled = true;
-
+      photoTaken = false;
     } catch (error) {
-      console.error("Erreur caméra:", error);
-      alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
-      takePhotoBtn.disabled = true;
-      publishBtn.disabled = true;
+      alert("Erreur accès caméra : " + error.message);
     }
   }
 
   takePhotoBtn.onclick = () => {
-    if (!stream) {
-      alert("Veuillez lancer la caméra d'abord.");
-      return;
-    }
     const ctx = canvas.getContext("2d");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Pour photo normale (non miroir) on ne fait pas de transformation ici
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    if (usingFrontCamera) {
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
+    } else {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    }
 
     canvas.classList.remove("hidden");
     video.classList.add("hidden");
@@ -254,53 +253,47 @@
 
   publishBtn.onclick = async () => {
     if (!photoTaken) {
-      alert("Veuillez capturer une photo avant de publier.");
+      alert("Prenez une photo d'abord.");
       return;
     }
+
     const caption = captionInput.value.trim();
-    if (!caption) {
-      alert("Veuillez ajouter une légende.");
-      return;
-    }
-
-    // Conversion de l’image en base64
     const dataUrl = canvas.toDataURL("image/jpeg");
-    // Supprime le préfixe "data:image/jpeg;base64,"
     const base64 = dataUrl.split(",")[1];
-
-    // Upload de l’image dans Supabase Storage
     const fileName = `posts/${Date.now()}_${Math.floor(Math.random() * 1000)}.jpg`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("posts")
+
+    const { error: uploadError } = await supabase.storage
+      .from("photos")
       .upload(fileName, Uint8Array.from(atob(base64), c => c.charCodeAt(0)), {
         contentType: "image/jpeg"
       });
 
     if (uploadError) {
-      alert("Erreur lors de l'upload de la photo : " + uploadError.message);
+      alert("Erreur d’upload : " + uploadError.message);
       return;
     }
 
-    // Récupération de l’URL publique
-    const { data: publicUrlData, error: urlError } = supabase.storage
-      .from("posts")
+    const { data: publicUrlData, error: urlError } = supabase
+      .storage
+      .from("photos")
       .getPublicUrl(fileName);
 
     if (urlError) {
-      alert("Erreur lors de la récupération de l'URL de la photo : " + urlError.message);
+      alert("Erreur URL image : " + urlError.message);
       return;
     }
 
-    // Sauvegarde du post dans la base Supabase
-    const { error: insertError } = await supabase.from("posts").insert({
-      user_id: currentUser.id,
-      photo_url: publicUrlData.publicUrl,
-      caption: caption,
-      created_at: new Date().toISOString()
-    });
+    const { error: insertError } = await supabase
+      .from("daily_posts")
+      .insert({
+        user_id: currentUser.id,
+        photo_url: publicUrlData.publicUrl,
+        caption: caption || null,
+        created_at: new Date().toISOString()
+      });
 
     if (insertError) {
-      alert("Erreur lors de la sauvegarde du post : " + insertError.message);
+      alert("Erreur DB : " + insertError.message);
       return;
     }
 
@@ -309,8 +302,7 @@
     photoTaken = false;
     canvas.classList.add("hidden");
     video.classList.remove("hidden");
-
-    alert("Photo publiée avec succès !");
+    alert("Photo publiée !");
     showFeed();
     loadPosts();
   };
@@ -356,12 +348,12 @@
       .limit(30);
 
     if (error) {
-      postsDiv.textContent = "Erreur de chargement des posts : " + error.message;
+      postsDiv.textContent = "Erreur chargement : " + error.message;
       return;
     }
 
-    if (!data || data.length === 0) {
-      postsDiv.textContent = "Aucun post pour le moment.";
+    if (!data.length) {
+      postsDiv.textContent = "Aucun post pour l’instant.";
       return;
     }
 
@@ -369,16 +361,16 @@
       const postDiv = document.createElement("div");
       const img = document.createElement("img");
       img.src = post.photo_url;
-      img.alt = post.caption;
+      img.alt = post.caption || "";
       const p = document.createElement("p");
-      p.textContent = post.caption;
+      p.textContent = post.caption || "";
       postDiv.appendChild(img);
       postDiv.appendChild(p);
       postsDiv.appendChild(postDiv);
     }
   }
 
-  supabase.auth.getSessiupon().then(({ data: { session } }) => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
     handleSession(session);
   });
 
