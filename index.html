@@ -226,12 +226,6 @@
       takePhotoBtn.disabled = false;
       publishBtn.disabled = true;
 
-      // Mirror front camera only
-      if (usingFrontCamera) {
-        video.classList.add("mirror");
-      } else {
-        video.classList.remove("mirror");
-      }
     } catch (error) {
       console.error("Erreur caméra:", error);
       alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
