@@ -1,35 +1,36 @@
-const CACHE_NAME = "messgo-cache-v1";
+const CACHE_VERSION = "v2"; // ↑ incrémente à chaque mise à jour
+const CACHE_NAME = `messgo-cache-${CACHE_VERSION}`;
 
 const urlsToCache = [
+  "/",
   "index.html",
   "manifest.json",
   "icon.png",
-  // Fichiers essentiels
-  "/",
+  // ajoute d'autres fichiers si nécessaire
 ];
 
 // Installation : mise en cache initiale
 self.addEventListener("install", (event) => {
+  self.skipWaiting(); // active immédiatement la nouvelle version
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(urlsToCache);
     })
   );
-  self.skipWaiting(); // active immédiatement
 });
 
-// Activation : nettoyage des anciens caches
+// Activation : suppression des anciens caches
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
+    caches.keys().then((cacheNames) =>
+      Promise.all(
+        cacheNames.map((name) => {
+          if (name !== CACHE_NAME) {
+            return caches.delete(name);
           }
         })
-      );
-    })
+      )
+    )
   );
   self.clients.claim(); // prend le contrôle immédiatement
 });
@@ -40,10 +41,8 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // Si trouvé dans le cache, on sert ça
       if (cachedResponse) return cachedResponse;
 
-      // Sinon, on essaie le réseau et on met à jour le cache
       return fetch(event.request)
         .then((response) => {
           const responseClone = response.clone();
@@ -53,10 +52,10 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => {
-          // En cas d’échec (hors-ligne), on peut gérer ici un fallback
-          // return caches.match('/offline.html');
+          // Option : ajouter fallback offline ici
         });
     })
   );
 });
+
 
