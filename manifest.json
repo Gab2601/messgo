@@ -1,6 +1,6 @@
 {
-  "name": "SnapClone",
-  "short_name": "Snap",
+  "name": "messgo",
+  "short_name": "messgo",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#ffffff",
