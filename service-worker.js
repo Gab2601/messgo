@@ -1,9 +1,8 @@
-const CACHE_NAME = "snapclone-cache-v1.2";
+const CACHE_NAME = "snapclone-cache-v1.3";
 const urlsToCache = [
   "index.html",
   "manifest.json",
   "icon.png",
-  "icon.png"
 ];
 
 // Installation : mise en cache initiale
