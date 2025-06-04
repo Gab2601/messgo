@@ -342,22 +342,19 @@
       console.log("Service Worker enregistré.");
     });
   }
-  if ("serviceWorker" in navigator) {
+ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("service-worker.js").then((registration) => {
-    console.log("SW enregistré avec succès.");
+    console.log("Service Worker enregistré");
 
-    // Auto-update SW
-    setInterval(() => {
-      registration.update();
-    }, 1000 * 60 * 5); // toutes les 5 minutes
+    // Mise à jour auto toutes les 5 min
+    setInterval(() => registration.update(), 5 * 60 * 1000);
 
-    // Nouveau SW trouvé ?
+    // Recharger si nouvelle version disponible
     registration.onupdatefound = () => {
       const newWorker = registration.installing;
       newWorker.onstatechange = () => {
         if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-          // Nouveau SW prêt, on recharge
-          console.log("Nouveau SW prêt, rechargement...");
+          console.log("Nouvelle version disponible. Rechargement...");
           window.location.reload();
         }
       };
