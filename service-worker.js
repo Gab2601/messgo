@@ -55,6 +55,50 @@ self.addEventListener("fetch", (event) => {
           // Option : ajouter fallback offline ici
         });
     })
+    const cameraSelect = document.getElementById("cameraSelect");
+const startCameraBtn = document.getElementById("startCameraBtn");
+const video = document.getElementById("video");
+
+let currentStream = null;
+
+// Liste les caméras disponibles dans le select
+async function listCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === "videoinput");
+
+  cameraSelect.innerHTML = "";
+  videoDevices.forEach((device, index) => {
+    const option = document.createElement("option");
+    option.value = device.deviceId;
+    option.text = device.label || `Caméra ${index + 1}`;
+    cameraSelect.appendChild(option);
+  });
+}
+
+// Lance la caméra sélectionnée
+async function startCamera() {
+  if (currentStream) {
+    currentStream.getTracks().forEach(track => track.stop());
+  }
+  const deviceId = cameraSelect.value;
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: deviceId } },
+      audio: false
+    });
+    video.srcObject = currentStream;
+    await video.play();
+  } catch (err) {
+    alert("Erreur d'accès à la caméra : " + err.message);
+  }
+}
+
+// Au chargement, liste les caméras
+listCameras();
+
+// Quand on clique, lance la caméra choisie
+startCameraBtn.onclick = startCamera;
+
   );
 });
 
