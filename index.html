@@ -22,7 +22,7 @@
       padding: 20px;
     }
 
-    input, button, select {
+    input, button {
       width: 100%;
       padding: 10px;
       margin: 5px 0;
@@ -37,7 +37,6 @@
       color: white;
       cursor: pointer;
       transition: background-color 0.3s ease;
-      border: none;
     }
 
     button:hover {
@@ -74,7 +73,7 @@
     #posts img {
       width: 100%;
       height: auto;
-      aspect-ratio: 3/4;
+      aspect-ratio: 3/4; /* format vertical */
       object-fit: cover;
       border-radius: 10px;
     }
@@ -116,18 +115,10 @@
 
   <div id="view-post" class="hidden">
     <h3>Poster une photo</h3>
-
-    <!-- Select pour choisir caméra -->
-    <select id="cameraSelect"></select>
-
     <video id="video" autoplay playsinline></video>
-
     <button id="startCameraBtn">Lancer la caméra</button>
-    <button id="switchCameraBtn">Changer de caméra</button>
     <button id="takePhotoBtn">Capturer</button>
-
     <canvas id="preview" width="300" height="400" class="hidden"></canvas>
-
     <input id="caption" type="text" placeholder="Légende" />
     <button id="publishBtn">Publier</button>
   </div>
@@ -146,7 +137,6 @@
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFvb3Jwa3RhaXd1ZnFtc3ZvaHFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc5MzY3ODgsImV4cCI6MjA2MzUxMjc4OH0.isawuZt5NN1YAdwjGOcWX2Li-4829Fg6myCXNAARRfM"
   );
 
-  // Éléments DOM
   const authDiv = document.getElementById("auth");
   const appDiv = document.getElementById("app");
   const loginBtn = document.getElementById("loginBtn");
@@ -163,8 +153,6 @@
   const publishBtn = document.getElementById("publishBtn");
   const profileEmail = document.getElementById("profileEmail");
   const postsDiv = document.getElementById("posts");
-  const cameraSelect = document.getElementById("cameraSelect");
-  const switchCameraBtn = document.getElementById("switchCameraBtn");
 
   document.getElementById("feedBtn").onclick = showFeed;
   document.getElementById("postBtnNav").onclick = showPost;
@@ -173,10 +161,7 @@
   let stream = null;
   let currentUser = null;
   let photoTaken = false;
-  let cameras = [];
-  let currentCameraIndex = 0;
 
-  // Authentification
   loginBtn.onclick = async () => {
     authMessage.textContent = "";
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -208,70 +193,31 @@
     location.reload();
   };
 
-  // Liste des caméras
-  async function listCameras() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    cameras = devices.filter(device => device.kind === "videoinput");
-    cameraSelect.innerHTML = "";
-    cameras.forEach((camera, index) => {
-      const option = document.createElement("option");
-      option.value = index;
-      option.text = camera.label || `Caméra ${index + 1}`;
-      cameraSelect.appendChild(option);
-    });
-    if (cameras.length > 0) {
-      currentCameraIndex = 0;
-      cameraSelect.value = 0;
-    }
-  }
-
-  // Lancer la caméra avec la caméra sélectionnée
-  async function startCamera(index = 0) {
+  startCameraBtn.onclick = async () => {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(t => t.stop());
       stream = null;
-    }
-    if (!cameras[index]) {
-      alert("Caméra non disponible");
-      return;
     }
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: cameras[index].deviceId } },
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 1080 }
+        },
         audio: false
       });
       video.srcObject = stream;
-      currentCameraIndex = index;
-      cameraSelect.value = index;
-      photoTaken = false;
+      await video.play();
       canvas.classList.add("hidden");
       video.classList.remove("hidden");
-    } catch (e) {
-      alert("Erreur d'accès caméra : " + e.message);
+      photoTaken = false;
+    } catch (error) {
+      console.error("Erreur caméra:", error);
+      alert("Impossible d’accéder à la caméra. Vérifiez les permissions.");
     }
-  }
-
-  // Changer la caméra
-  switchCameraBtn.onclick = () => {
-    if (cameras.length === 0) {
-      alert("Aucune caméra détectée");
-      return;
-    }
-    let nextIndex = (currentCameraIndex + 1) % cameras.length;
-    startCamera(nextIndex);
   };
 
-  // Start caméra bouton
-  startCameraBtn.onclick = () => {
-    startCamera(currentCameraIndex);
-  };
-
-  // Changer caméra via select
-  cameraSelect.onchange = () => {
-    startCamera(parseInt(cameraSelect.value));
-  };
-
-  // Capturer photo
   takePhotoBtn.onclick = () => {
     if (!stream) {
       alert("Veuillez lancer la caméra d'abord.");
@@ -286,7 +232,6 @@
     photoTaken = true;
   };
 
-  // Publier photo sur Supabase
   publishBtn.onclick = async () => {
     if (!photoTaken) {
       alert("Veuillez capturer une photo avant de publier.");
@@ -298,83 +243,36 @@
         alert("Erreur : image vide.");
         return;
       }
-      const filename = `public/${Date.now()}.png`;
 
-      // Upload sur Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("images")
-        .upload(filename, blob, {
-          cacheControl: "3600",
-          upsert: false
-        });
-
+      const fileName = ${currentUser.id}_${Date.now()}.png;
+      const { data: file, error: uploadError } = await supabase.storage.from("posts").upload(fileName, blob);
       if (uploadError) {
-        alert("Erreur upload image : " + uploadError.message);
+        alert("Erreur upload : " + uploadError.message);
         return;
       }
 
-      // Obtenir l'URL publique
-      const { data: publicUrlData } = supabase.storage
-        .from("images")
-        .getPublicUrl(filename);
+      const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
+      await supabase.from("daily_posts").insert({
+        user_id: currentUser.id,
+        photo_url: urlData.publicUrl,
+        caption: captionInput.value,
+        timestamp: new Date().toISOString()
+      });
 
-      // Ajouter post à la base
-      const { error: insertError } = await supabase
-        .from("posts")
-        .insert([
-          {
-            image_url: publicUrlData.publicUrl,
-            caption: captionInput.value,
-            user_id: currentUser.id
-          }
-        ]);
-
-      if (insertError) {
-        alert("Erreur lors de la création du post : " + insertError.message);
-        return;
-      }
-
-      alert("Photo publiée !");
       captionInput.value = "";
-      photoTaken = false;
-      canvas.classList.add("hidden");
-      video.classList.remove("hidden");
       loadPosts();
       showFeed();
+
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }
+      canvas.classList.add("hidden");
+      video.classList.remove("hidden");
+      photoTaken = false;
     }, "image/png");
   };
 
-  // Afficher le fil d'actualité
-  async function loadPosts() {
-    postsDiv.innerHTML = "<p>Chargement...</p>";
-    const { data, error } = await supabase
-      .from("posts")
-      .select("id, image_url, caption, user_id")
-      .order("id", { ascending: false })
-      .limit(20);
-
-    if (error) {
-      postsDiv.innerHTML = `<p>Erreur chargement posts : ${error.message}</p>`;
-      return;
-    }
-
-    if (data.length === 0) {
-      postsDiv.innerHTML = "<p>Aucun post pour l'instant.</p>";
-      return;
-    }
-
-    postsDiv.innerHTML = "";
-    for (const post of data) {
-      const div = document.createElement("div");
-      div.innerHTML = `
-        <img src="${post.image_url}" alt="Post" />
-        <p>${post.caption || ""}</p>
-      `;
-      postsDiv.appendChild(div);
-    }
-  }
-
-  // Affichage des vues
   function showFeed() {
     document.getElementById("view-feed").classList.remove("hidden");
     document.getElementById("view-post").classList.add("hidden");
@@ -393,42 +291,56 @@
     document.getElementById("view-profile").classList.remove("hidden");
   }
 
-  // Gérer session
+  async function loadPosts() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { data } = await supabase
+      .from("daily_posts")
+      .select("*")
+      .gte("timestamp", today.toISOString())
+      .order("timestamp", { ascending: false });
+
+    postsDiv.innerHTML = "";
+    if (data && data.length) {
+      data.forEach(post => {
+        const div = document.createElement("div");
+        div.innerHTML = 
+          <img src="${post.photo_url}" alt="Photo postée" />
+          <p>${post.caption || ""}</p>
+        ;
+        postsDiv.appendChild(div);
+      });
+    } else {
+      postsDiv.innerHTML = "<p>Aucun post aujourd'hui.</p>";
+    }
+  }
+
+  async function init() {
+    const { data: { session } } = await supabase.auth.getSession();
+    handleSession(session);
+    supabase.auth.onAuthStateChange((_event, session) => handleSession(session));
+  }
+
   function handleSession(session) {
-    if (!session) {
+    currentUser = session?.user;
+    if (currentUser) {
+      authDiv.classList.add("hidden");
+      appDiv.classList.remove("hidden");
+      profileEmail.textContent = currentUser.email;
+      loadPosts();
+    } else {
       authDiv.classList.remove("hidden");
       appDiv.classList.add("hidden");
-      return;
     }
-
-    currentUser = session.user;
-    authDiv.classList.add("hidden");
-    appDiv.classList.remove("hidden");
-    profileEmail.textContent = currentUser.email;
-
-    // Initialiser caméra + posts
-    listCameras().then(() => startCamera(0));
-    loadPosts();
-    showFeed();
   }
 
-  // Vérifier session au chargement
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    handleSession(session);
-  });
+  init();
 
-  // Ecouter les changements d'auth
-  supabase.auth.onAuthStateChange((_event, session) => {
-    handleSession(session);
-  });
-
-  // Enregistrer Service Worker
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("service-worker.js")
-      .then(() => console.log("Service Worker enregistré"))
-      .catch(console.error);
+    navigator.serviceWorker.register("service-worker.js").then(() => {
+      console.log("Service Worker enregistré.");
+    });
   }
-
 </script>
 
 </body>
