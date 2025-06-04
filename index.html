@@ -342,6 +342,29 @@
       console.log("Service Worker enregistré.");
     });
   }
+  if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js").then((registration) => {
+    console.log("SW enregistré avec succès.");
+
+    // Auto-update SW
+    setInterval(() => {
+      registration.update();
+    }, 1000 * 60 * 5); // toutes les 5 minutes
+
+    // Nouveau SW trouvé ?
+    registration.onupdatefound = () => {
+      const newWorker = registration.installing;
+      newWorker.onstatechange = () => {
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          // Nouveau SW prêt, on recharge
+          console.log("Nouveau SW prêt, rechargement...");
+          window.location.reload();
+        }
+      };
+    };
+  });
+}
+
 </script>
 
 </body>
