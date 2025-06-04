@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v2"; // ↑ incrémente à chaque mise à jour
+const CACHE_VERSION = "v3"; // ↑ incrémente à chaque mise à jour
 const CACHE_NAME = `messgo-cache-${CACHE_VERSION}`;
 
 const urlsToCache = [
