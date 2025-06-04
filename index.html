@@ -245,13 +245,13 @@
       }
 
       const fileName = ${currentUser.id}_${Date.now()}.png;
-      const { data: file, error: uploadError } = await supabase.storage.from("posts").upload(fileName, blob);
+      const { data: file, error: uploadError } = await supabase.storage.from("daily_posts").upload(fileName, blob);
       if (uploadError) {
         alert("Erreur upload : " + uploadError.message);
         return;
       }
 
-      const { data: urlData } = supabase.storage.from("posts").getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage.from("daily_posts").getPublicUrl(fileName);
       await supabase.from("daily_posts").insert({
         user_id: currentUser.id,
         photo_url: urlData.publicUrl,
