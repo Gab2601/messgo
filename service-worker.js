@@ -36,31 +36,34 @@ self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) {
+    caches.match(event.request).then(cachedResponse => {
+      if (cachedResponse) {
         // Renvoie la réponse en cache immédiatement
         // Puis met à jour en arrière-plan (stale-while-revalidate)
-        fetch(event.request).then(networkResponse => {
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, networkResponse.clone());
-          });
-        }).catch(() => {
-          // Pas grave si le réseau est indisponible
-        });
-        return response;
+        event.waitUntil(
+          fetch(event.request).then(networkResponse => {
+            return caches.open(CACHE_NAME).then(cache => {
+              return cache.put(event.request, networkResponse.clone());
+            });
+          }).catch(() => {
+            // Pas grave si le réseau est indisponible
+          })
+        );
+        return cachedResponse;
       }
       // Si pas dans le cache, fetch réseau normal
       return fetch(event.request)
         .then(networkResponse => {
-          // Met en cache la nouvelle réponse
-          caches.open(CACHE_NAME).then(cache => {
+          return caches.open(CACHE_NAME).then(cache => {
             cache.put(event.request, networkResponse.clone());
+            return networkResponse;
           });
-          return networkResponse;
         })
         .catch(() => {
           // Option : fallback offline ici si tu veux
+          return new Response("Offline", { status: 503, statusText: "Offline" });
         });
     })
   );
 });
+
