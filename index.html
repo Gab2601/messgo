@@ -360,7 +360,7 @@
   async function loadPosts() {
     postsDiv.innerHTML = "";
     const { data, error } = await supabase
-      .from("posts")
+      .from("daily_posts")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(30);
@@ -388,7 +388,7 @@
     }
   }
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  supabase.auth.getSessiupon().then(({ data: { session } }) => {
     handleSession(session);
   });
 
